@@ -150,17 +150,27 @@ def mostrar_imagen_centrada(ruta_imagen, ancho=600, caption=""):
         with open(ruta_imagen, "rb") as f:
             data = f.read()
         b64 = base64.b64encode(data).decode()
+
         st.markdown(f"""
-            <div class='img-centered'>
+            <div class='img-centered' style='text-align:center; margin-bottom:15px;'>
                 <img src='data:image/jpeg;base64,{b64}' width='{ancho}'>
-                <p>{caption}</p>
+                <p style='margin-top:8px; font-weight:500;'>{caption}</p>
             </div>
         """, unsafe_allow_html=True)
-    except FileNotFoundError:
-        st.warning("⚠️ Imagen no encontrada en la ruta especificada.")
 
+    except FileNotFoundError:
+        st.warning("⚠ Imagen no encontrada en la ruta especificada.")
+
+# Mostrar la imagen
 mostrar_imagen_centrada("./data/imagenes/TOLIMA.jpeg", ancho=600, caption="Paisaje del Tolima")
 
+# Mensaje aclaratorio
+st.markdown(
+    "<p style='font-size:13px; color:gray; text-align:center;'>"
+    "Nota: Las imágenes usadas en esta aplicación no son de propia autoría; fueron obtenidas de internet de funtes libres."
+    "</p>",
+    unsafe_allow_html=True
+)
 # =========================================================
 # CARGAR DATOS DESDE EXCEL
 # =========================================================
@@ -170,6 +180,15 @@ try:
 except FileNotFoundError:
     st.error("⚠️ No se encontró el archivo Excel en la ruta especificada.")
     df = pd.DataFrame(columns=["municipio", "categoría", "nombre", "fuente", "Aporte a la investigaciòn"])
+# Normalizar categorías individuales
+df["categoría_normalizada"] = df["categoría"].astype(str).apply(
+    lambda x: [c.strip() for c in x.split(" / ") ]  # Separar por "/"
+)
+# Obtener todas las categorías individuales
+categorias_unicas = sorted(
+    {c for sublist in df["categoría_normalizada"] for c in sublist}
+)
+
 
 # =========================================================
 # BARRA SUPERIOR DE FILTROS SIMPLIFICADA
@@ -185,8 +204,8 @@ with col1:
 
 with col2:
     categoria_sel = st.selectbox(
-        "🏞️ Categoría", 
-        options=["Todos"] + sorted(df["categoría"].dropna().unique()) if "categoría" in df.columns else ["Todos"]
+        "🏞️ Categoría",
+        options=["Todos"] + categorias_unicas
     )
 st.markdown('</div>', unsafe_allow_html=True)
 
@@ -195,11 +214,12 @@ st.markdown('</div>', unsafe_allow_html=True)
 # =========================================================
 df_filt = df.copy()
 
-if "municipio" in df.columns and municipio_sel != "Todos":
+if municipio_sel != "Todos":
     df_filt = df_filt[df_filt["municipio"] == municipio_sel]
 
-if "categoría" in df.columns and categoria_sel != "Todos":
-    df_filt = df_filt[df_filt["categoría"] == categoria_sel]
+if categoria_sel != "Todos":
+    df_filt = df_filt[df_filt["categoría_normalizada"].apply(lambda lst: categoria_sel in lst)]
+
 
 
 # =========================================================
@@ -209,7 +229,10 @@ if "categoría" in df.columns and categoria_sel != "Todos":
 # KPIs DINÁMICOS SEGÚN FILTRO
 # =========================================================
 registros = len(df_filt)
-categorias_unicas = df_filt["categoría"].nunique() if "categoría" in df_filt.columns else 0
+# Contar categorías individuales únicas del DataFrame filtrado
+categorias_unicas = len(
+    {c for sublist in df_filt["categoría_normalizada"] for c in sublist}
+)
 fuentes_unicas = df_filt["fuente"].nunique() if "fuente" in df_filt.columns else 0
 
 st.markdown(f"""
